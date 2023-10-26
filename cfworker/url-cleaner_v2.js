@@ -21,18 +21,13 @@ const html = `
     <hr>
     <div id="result">
         <div id="originalDiv">
-            <button id="copyOriginalButton" onclick="copyToClipboard('originalLink')" disabled>复制原始跳转的URL</button>
+            <button id="copyOriginalButton" onclick="copyToClipboard('originalLink')" disabled>复制原始</button>
             <a id="originalLink" href="#" target="_blank"></a>
         </div>
         <hr>
         <div id="cleanDiv">
-            <button id="copyCleanButton" onclick="copyToClipboard('cleanLink')" disabled>复制完全过滤的URL</button>
+            <button id="copyCleanButton" onclick="copyToClipboard('cleanLink')" disabled>复制过滤</button>
             <a id="cleanLink" href="#" target="_blank"></a>
-        </div>
-        <div id="firstParamDiv">
-        <hr>
-        <button id="copyFirstParamButton" onclick="copyToClipboard('firstParamLink')" disabled>复制保留首参数的URL</button>
-        <a id="firstParamLink" href="#" target="_blank"></a>
         </div>
     </div>
 
@@ -56,13 +51,10 @@ const html = `
             document.getElementById('originalLink').innerText = jsonData.original;
             document.getElementById('cleanLink').href = jsonData.clean;
             document.getElementById('cleanLink').innerText = jsonData.clean;
-            document.getElementById('firstParamLink').href = jsonData.firstParam;
-            document.getElementById('firstParamLink').innerText = jsonData.firstParam;
         
             // 启用复制按钮
             document.getElementById('copyOriginalButton').disabled = false;
             document.getElementById('copyCleanButton').disabled = false;
-            document.getElementById('copyFirstParamButton').disabled = false;
         }
 
         function copyToClipboard(elementId) {
@@ -121,20 +113,12 @@ async function handleRequest(request) {
             finalUrl = location;
         }
         
-        const urlParts = finalUrl.split('?');
-        const cleanUrl = urlParts[0];
-        let firstParamUrl = cleanUrl;
-        if (urlParts.length > 1) {
-            const firstParam = urlParts[1].split('&')[0];
-            firstParamUrl = `${cleanUrl}?${firstParam}`;
-        }
-        
+
+        const cleanUrl = finalUrl.split('?')[0];
         const result = {
             original: finalUrl,
-            clean: cleanUrl,
-            firstParam: firstParamUrl  // 新增字段
+            clean: cleanUrl
         };
-
         return new Response(JSON.stringify(result), {
             headers: {'content-type': 'application/json'},
             status: 200
