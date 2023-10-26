@@ -96,7 +96,7 @@ async function handleRequest(request) {
         } else if (algorithm === 'pure') {
             regex = /^(https?:\/\/|\/\/)?([a-zA-Z0-9-\.]+)(:[0-9]+)?(\/[^\s]*)?$/;
         } else if (algorithm === 'taobao') {  // 添加淘宝专用算法
-            regex = /https?:\/\/m\.tb\.cn\/[^\s]+/;
+            regex = /https?:\/\/[^\s]+[^\s\.]\s/;
         } else {
             return new Response('无效的算法参数', {status: 400});
         }
@@ -128,7 +128,11 @@ async function handleRequest(request) {
                 redirect: 'manual',
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-                    'Referer': 'https://www.bing.com'
+                    'Referer': 'https://www.bing.com/',
+                    'X-Forwarded-For': '1.1.1.1',
+                    'X-Real-IP': '1.1.1.1',
+                    'CF-Connecting-IP': '1.1.1.1',
+                    'Remote-Addr': '1.1.1.1'
                 }
             });
             if ([301, 302, 303, 307, 308].includes(response.status)) {
