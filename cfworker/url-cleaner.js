@@ -1,5 +1,6 @@
 // GPLv3 @BlueSkyXN
 // Source https://github.com/BlueSkyXN/URL-Cleaner
+
 // 定义HTML结构
 const html = `
 <!DOCTYPE html>
@@ -16,6 +17,7 @@ const html = `
     <select id="algorithm">
         <option value="mixed">混合文本算法</option>
         <option value="pure">纯 URL 算法</option>
+        <option value="taobao">淘宝专用算法</option>
     </select>
     <button onclick="checkRedirect()">检查重定向</button>
     <hr>
@@ -87,40 +89,54 @@ async function handleRequest(request) {
     if (url.pathname === '/check') {
         let targetUrl = url.searchParams.get('url');
         const algorithm = url.searchParams.get('algorithm') || 'mixed';
-        
+
         let regex;
         if (algorithm === 'mixed') {
             regex = /https?:\/\/[^\s;!?(){}"'<>\[\]\u4e00-\u9fff\u3000-\u303f,]+/;
         } else if (algorithm === 'pure') {
             regex = /^(https?:\/\/|\/\/)?([a-zA-Z0-9-\.]+)(:[0-9]+)?(\/[^\s]*)?$/;
+        } else if (algorithm === 'taobao') {  // 添加淘宝专用算法
+            regex = /https?:\/\/m\.tb\.cn\/[^\s]+/;
         } else {
             return new Response('无效的算法参数', {status: 400});
         }
-    
+
         const urlMatch = targetUrl.match(regex);
         if (urlMatch) {
             targetUrl = urlMatch[0];
-            if (!targetUrl.startsWith('http')) {  // 如果没有 http 或 https，添加 http
+            if (!targetUrl.startsWith('http')) {
                 targetUrl = 'http:' + targetUrl;
             }
         } else {
             return new Response('无效的URL', {status: 400});
         }
 
-        const response = await fetch(targetUrl, {
-            redirect: 'manual',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-                'Referer': 'https://www.bing.com'
-            }
-        });
-
+        // 如果是淘宝专用算法，进一步处理
         let finalUrl = targetUrl;
-        if ([301, 302, 303, 307, 308].includes(response.status)) {
-            const location = response.headers.get('Location') || '';
-            finalUrl = location;
+        if (algorithm === 'taobao') {
+            const tbResponse = await fetch(targetUrl);
+            const tbText = await tbResponse.text();
+            const urlRegex = /var url = '([^']+)'/;
+            const urlMatch = tbText.match(urlRegex);
+            if (urlMatch) {
+                finalUrl = urlMatch[1];
+            } else {
+                return new Response('无法从淘宝页面提取URL', {status: 400});
+            }
+        } else {
+            const response = await fetch(targetUrl, {
+                redirect: 'manual',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+                    'Referer': 'https://www.bing.com'
+                }
+            });
+            if ([301, 302, 303, 307, 308].includes(response.status)) {
+                const location = response.headers.get('Location') || '';
+                finalUrl = location;
+            }
         }
-        
+
         const urlParts = finalUrl.split('?');
         const cleanUrl = urlParts[0];
         let firstParamUrl = cleanUrl;
@@ -128,11 +144,11 @@ async function handleRequest(request) {
             const firstParam = urlParts[1].split('&')[0];
             firstParamUrl = `${cleanUrl}?${firstParam}`;
         }
-        
+
         const result = {
             original: finalUrl,
             clean: cleanUrl,
-            firstParam: firstParamUrl  // 新增字段
+            firstParam: firstParamUrl
         };
 
         return new Response(JSON.stringify(result), {
