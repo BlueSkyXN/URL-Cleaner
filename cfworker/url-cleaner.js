@@ -18,9 +18,17 @@ const html = `
         <option value="pure">纯 URL 算法</option>
     </select>
     <button onclick="checkRedirect()">检查重定向</button>
+    <hr>
     <div id="result">
-        <button id="copyButton" onclick="copyToClipboard()" disabled>复制</button>
-        <a id="resultLink" href="#" target="_blank"></a>
+        <div id="originalDiv">
+            <button id="copyOriginalButton" onclick="copyToClipboard('originalLink')" disabled>复制原始</button>
+            <a id="originalLink" href="#" target="_blank"></a>
+        </div>
+        <hr>
+        <div id="cleanDiv">
+            <button id="copyCleanButton" onclick="copyToClipboard('cleanLink')" disabled>复制过滤</button>
+            <a id="cleanLink" href="#" target="_blank"></a>
+        </div>
     </div>
 
     <script>
@@ -28,25 +36,39 @@ const html = `
             const url = document.getElementById('urlInput').value;
             const algorithm = document.getElementById('algorithm').value;
             const response = await fetch('/check?url=' + encodeURIComponent(url) + '&algorithm=' + algorithm);
-            const result = await response.text();
-            const resultLink = document.getElementById('resultLink');
-            const copyButton = document.getElementById('copyButton');
-            resultLink.href = result;
-            resultLink.innerText = result;
-            copyButton.disabled = false;
+        
+            // 先判断响应状态是否正确
+            if (response.status !== 200) {
+                console.error('服务器响应错误: ', response.status);
+                return;
+            }
+
+            // 直接获取JSON数据
+            const jsonData = await response.json();
+        
+            // 更新DOM元素
+            document.getElementById('originalLink').href = jsonData.original;
+            document.getElementById('originalLink').innerText = jsonData.original;
+            document.getElementById('cleanLink').href = jsonData.clean;
+            document.getElementById('cleanLink').innerText = jsonData.clean;
+        
+            // 启用复制按钮
+            document.getElementById('copyOriginalButton').disabled = false;
+            document.getElementById('copyCleanButton').disabled = false;
         }
 
-        function copyToClipboard() {
-            const resultLink = document.getElementById('resultLink');
+        function copyToClipboard(elementId) {
+            const resultLink = document.getElementById(elementId);
             navigator.clipboard.writeText(resultLink.href)
-                .then(() => {
-                    alert('URL已复制到剪贴板！');
-                })
-                .catch(err => {
-                    console.error('复制文本时出错: ', err);
-                });
+            .then(() => {
+                alert('URL已复制到剪贴板！');
+            })
+            .catch(err => {
+                console.error('复制文本时出错: ', err);
+            });
         }
     </script>
+
 </body>
 </html>
 `;
@@ -62,7 +84,7 @@ async function handleRequest(request) {
         if (algorithm === 'mixed') {
             regex = /https?:\/\/[^\s;!?(){}"'<>\[\]\u4e00-\u9fff\u3000-\u303f,]+/;
         } else if (algorithm === 'pure') {
-            regex = /^(https?:\/\/|\/\/)?([a-zA-Z0-9-\.]+)(:[0-9]+)?(\/[^\s]*)?$/;  // 更新了这里
+            regex = /^(https?:\/\/|\/\/)?([a-zA-Z0-9-\.]+)(:[0-9]+)?(\/[^\s]*)?$/;
         } else {
             return new Response('无效的算法参数', {status: 400});
         }
@@ -70,8 +92,8 @@ async function handleRequest(request) {
         const urlMatch = targetUrl.match(regex);
         if (urlMatch) {
             targetUrl = urlMatch[0];
-            if (!targetUrl.startsWith('http')) {  // 如果没有 http 或 https，添加 https
-                targetUrl = 'https:' + targetUrl;
+            if (!targetUrl.startsWith('http')) {  // 如果没有 http 或 https，添加 http
+                targetUrl = 'http:' + targetUrl;
             }
         } else {
             return new Response('无效的URL', {status: 400});
@@ -86,13 +108,21 @@ async function handleRequest(request) {
         });
 
         let finalUrl = targetUrl;
-        if (response.status === 301 || response.status === 302) {
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
             const location = response.headers.get('Location') || '';
             finalUrl = location;
         }
+        
 
         const cleanUrl = finalUrl.split('?')[0];
-        return new Response(cleanUrl, {status: 200});
+        const result = {
+            original: finalUrl,
+            clean: cleanUrl
+        };
+        return new Response(JSON.stringify(result), {
+            headers: {'content-type': 'application/json'},
+            status: 200
+        });
     }
 
     return new Response(html, {
